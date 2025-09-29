@@ -44,8 +44,8 @@ class _TunerHomePageState extends State<TunerHomePage> {
   final int _bufferSize = 4096;
   final double _clarityThreshold = 0.9;
 
-  String _note = '...';
-  double _frequency = 0.0;
+  // String _note = '...';
+  // double _frequency = 0.0;
   bool _isListening = false;
 
   String _tuningStatus = 'Start Tuning!';
@@ -74,30 +74,30 @@ class _TunerHomePageState extends State<TunerHomePage> {
     );
   }
 
-  String _freqToNote(double frequency) {
-    if (frequency <= 0) return '...';
-    List<String> noteCycle = [
-      'A',
-      'A#',
-      'B',
-      'C',
-      'C#',
-      'D',
-      'D#',
-      'E',
-      'F',
-      'F#',
-      'G',
-      'G#',
-    ];
+  // String _freqToNote(double frequency) {
+  //   if (frequency <= 0) return '...';
+  //   List<String> noteCycle = [
+  //     'A',
+  //     'A#',
+  //     'B',
+  //     'C',
+  //     'C#',
+  //     'D',
+  //     'D#',
+  //     'E',
+  //     'F',
+  //     'F#',
+  //     'G',
+  //     'G#',
+  //   ];
 
-    int semitonesFromA4 = (12 * log(frequency / 440) / log(2)).round();
+  //   int semitonesFromA4 = (12 * log(frequency / 440) / log(2)).round();
 
-    int index = ((semitonesFromA4 % 12) + 12) % 12;
-    int octave = 4 + (semitonesFromA4 ~/ 12); // Integer division
+  //   int index = ((semitonesFromA4 % 12) + 12) % 12;
+  //   int octave = 4 + (semitonesFromA4 ~/ 12); // Integer division
 
-    return ('${noteCycle[index]}$octave');
-  }
+  //   return ('${noteCycle[index]}$octave');
+  // }
 
   double _noteToFreq(String noteName) {
     // Map representing no. of semitones from A
@@ -150,25 +150,26 @@ class _TunerHomePageState extends State<TunerHomePage> {
   }
 
   //Toggles audio on/off
-  Future<void> _toggleListening() async {
-    if (_isListening) {
-      await _stopCapture();
-    } else {
-      await _startCapture();
-    }
-  }
+  // Future<void> _toggleListening() async {
+  //   if (_isListening) {
+  //     await _stopCapture();
+  //   } else {
+  //     await _startCapture();
+  //   }
+  // }
 
   Future<void> _onStringSelected(int index) async {
     if (_isListening && _selectedStringIndex == index) {
       await _stopCapture();
-    } else {
-      setState(() {
-        _selectedStringIndex = index;
-        _tuningStatus = 'Listening';
-        _statusColor = const Color(0xFFE0D5C8);
-        _centsDiff = 0.0;
-      });
+      return;
     }
+
+    setState(() {
+      _selectedStringIndex = index;
+      _tuningStatus = 'Listening';
+      _statusColor = const Color(0xFFE0D5C8);
+      _centsDiff = 0.0;
+    });
 
     if (!_isListening) {
       await _startCapture();
@@ -237,7 +238,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
     setState(() {
       _isListening = false;
       _selectedStringIndex = -1;
-      _tuningStatus = 'Start Tuning';
+      _tuningStatus = 'Start Tuning!';
       _statusColor = const Color(0xFFE0D5C8);
       _centsDiff = 0.0;
     });
@@ -315,13 +316,22 @@ class _TunerHomePageState extends State<TunerHomePage> {
               ),
             ),
 
-            const SizedBox(height: 30),
-            SizedBox(
-              height: 50,
-              width: 330,
-              child: CustomPaint(
-                painter: LinearGaugePainter(cents: _centsDiff),
-              ),
+            const SizedBox(height: 50),
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(end: _centsDiff),
+              duration: const Duration(milliseconds: 100),
+              builder: (context, animatedCents, _) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 30.0),
+                  child: SizedBox(
+                    height: 60,
+                    width: 330,
+                    child: CustomPaint(
+                      painter: LinearGaugePainter(cents: animatedCents),
+                    ),
+                  ),
+                );
+              },
             ),
 
             const SizedBox(height: 30),
@@ -348,6 +358,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
   }
 }
 
+// Animated Tuning meter
 class LinearGaugePainter extends CustomPainter {
   final double cents;
   LinearGaugePainter({required this.cents});
@@ -356,7 +367,7 @@ class LinearGaugePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final linePaint = Paint()
       ..color = Color(0xFF3D352E)
-      ..strokeWidth = 2;
+      ..strokeWidth = 3;
 
     final center = size.width / 2;
     canvas.drawLine(
@@ -367,15 +378,17 @@ class LinearGaugePainter extends CustomPainter {
 
     final tickPaint = Paint()..color = Color(0xFF3D352E);
 
-    _drawTick(canvas, center, size.height, tickPaint, 15);
-    _drawTick(canvas, 0, size.height, tickPaint, 10);
-    _drawTick(canvas, size.width, size.height, tickPaint, 10);
+    _drawTick(canvas, center, size.height + 12, tickPaint, 15);
+    _drawTick(canvas, 0, size.height + 12, tickPaint, 15);
+    _drawTick(canvas, size.width, size.height + 12, tickPaint, 15);
+    _drawTick(canvas, center / 2, size.height + 12, tickPaint, 10);
+    _drawTick(canvas, (3 / 4) * size.width, size.height + 12, tickPaint, 10);
 
-    _drawText(canvas, '0', center, size.height - 15);
-    _drawText(canvas, '-50', 0, size.height - 15);
-    _drawText(canvas, '+50', size.width, size.height - 15);
-    _drawText(canvas, '♭', -10, size.height - 10, fontSize: 32);
-    _drawText(canvas, '♯', size.width + 10, size.height - 10, fontSize: 28);
+    _drawText(canvas, '0', center, size.height - 10);
+    _drawText(canvas, '-50', 0, size.height - 10);
+    _drawText(canvas, '+50', size.width, size.height - 10);
+    _drawText(canvas, '♭', -10, size.height - 5, fontSize: 32);
+    _drawText(canvas, '♯', size.width + 10, size.height - 5, fontSize: 28);
 
     final indicatorPaint = Paint()..color = Color(0xFF3D352E);
     final clampedCents = cents.clamp(-50.0, 50.0);
@@ -397,7 +410,7 @@ class LinearGaugePainter extends CustomPainter {
     Paint paint,
     double tickHeight,
   ) {
-    final paint = Paint()..strokeWidth = 2;
+    final paint = Paint()..strokeWidth = 3;
     canvas.drawLine(
       Offset(x, height / 2 - tickHeight / 2),
       Offset(x, height / 2 + tickHeight / 2),
