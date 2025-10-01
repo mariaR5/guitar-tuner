@@ -7,6 +7,25 @@ import 'package:flutter_audio_capture/flutter_audio_capture.dart';
 import 'package:pitch_detector_dart/pitch_detector.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+class Tuning {
+  final String name;
+  final List<String> notes;
+
+  Tuning({required this.name, required this.notes});
+}
+
+class Instrument {
+  final String name;
+  final String imgPath;
+  final List<Tuning> tunings;
+
+  Instrument({
+    required this.name,
+    required this.imgPath,
+    required this.tunings,
+  });
+}
+
 void main() {
   runApp(const MyApp());
 }
@@ -36,6 +55,7 @@ class TunerHomePage extends StatefulWidget {
 }
 
 class _TunerHomePageState extends State<TunerHomePage> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final _audioCapture = FlutterAudioCapture();
   PitchDetector? _pitchDetector;
   Timer? _resetTimer;
@@ -52,16 +72,86 @@ class _TunerHomePageState extends State<TunerHomePage> {
   Color _statusColor = const Color(0xFFE0D5C8);
   double _centsDiff = 0.0;
 
-  // Standard Tuning
-  final List<String> _stringNames = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'];
-  final List<String> _stringDisplay = ['E', 'A', 'D', 'G', 'B', 'E'];
+  //------Different Types of Tunings--------
+  // final List<Tuning> _tunings = [
+  //   Tuning(name: 'Standard', notes: ['E2', 'A2', 'D3', 'G3', 'B3', 'E4']),
+  //   Tuning(name: 'Drop D', notes: ['D2', 'A2', 'D3', 'G3', 'B3', 'E4']),
+  //   Tuning(name: 'Open G', notes: ['D2', 'G2', 'D3', 'G3', 'B3', 'D4']),
+  //   Tuning(name: 'Open D', notes: ['D2', 'A2', 'D3', 'F#3', 'A3', 'D4']),
+  //   Tuning(name: 'Open C', notes: ['C2', 'G2', 'C3', 'G3', 'C4', 'E4']),
+  // ];
+
+  //------Different Instruments-----------
+  final List<Instrument> _instruments = [
+    Instrument(
+      name: 'Guitar',
+      imgPath: 'assets/images/guitar.png',
+      tunings: [
+        Tuning(name: 'Standard', notes: ['E2', 'A2', 'D3', 'G3', 'B3', 'E4']),
+        Tuning(name: 'Drop D', notes: ['D2', 'A2', 'D3', 'G3', 'B3', 'E4']),
+        Tuning(name: 'Open G', notes: ['D2', 'G2', 'D3', 'G3', 'B3', 'D4']),
+        Tuning(name: 'Open D', notes: ['D2', 'A2', 'D3', 'F#3', 'A3', 'D4']),
+        Tuning(name: 'Open C', notes: ['C2', 'G2', 'C3', 'G3', 'C4', 'E4']),
+      ],
+    ),
+    Instrument(
+      name: 'Bass',
+      imgPath: 'assets/images/bass.png',
+      tunings: [
+        Tuning(name: 'Standard', notes: ['E1', 'A1', 'D2', 'G2']),
+        Tuning(name: 'Drop D', notes: ['D1', 'A1', 'D2', 'G2']),
+        Tuning(name: 'Drop C', notes: ['C1', 'A1', 'D2', 'G2']),
+        Tuning(name: 'Half Step', notes: ['Eb1', 'Ab1', 'Db2', 'Gb2']),
+        Tuning(name: 'Full Step', notes: ['D1', 'G1', 'C2', 'F2']),
+      ],
+    ),
+    Instrument(
+      name: 'Ukelele',
+      imgPath: 'assets/images/ukelele.png',
+      tunings: [
+        Tuning(name: 'Standard', notes: ['G4', 'C4', 'E4', 'A4']),
+        Tuning(name: 'Traditional', notes: ['A4', 'D4', 'F#4', 'B4']),
+        Tuning(name: 'Low G', notes: ['G3', 'C4', 'E4', 'A4']),
+        Tuning(name: 'Baritone', notes: ['D3', 'G3', 'B3', 'E4']),
+        Tuning(name: 'Slack Key', notes: ['G4', 'C4', 'E4', 'G4']),
+      ],
+    ),
+    Instrument(
+      name: 'Violin',
+      imgPath: 'assets/images/violin.png',
+      tunings: [
+        Tuning(name: 'Standard', notes: ['G3', 'D4', 'A4', 'E5']),
+        Tuning(name: 'Baroque', notes: ['G3', 'D4', 'A4', 'D5']),
+        Tuning(name: 'High G', notes: ['G3', 'D4', 'A4', 'G5']),
+        Tuning(name: 'Drop D', notes: ['D3', 'G3', 'D4', 'A4']),
+        Tuning(name: 'Cross Tuning', notes: ['A3', 'E4', 'A4', 'E5']),
+      ],
+    ),
+  ];
+  int _selectedInstrumentIndex = 0;
+  int _selectedTuningIndex = 0;
+
+  List<String> _stringNames = []; // = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'];
+  late List<String> _stringDisplayNames =
+      []; // = ['E', 'A', 'D', 'G', 'B', 'E'];
   int _selectedStringIndex = -1;
 
   @override
   void initState() {
     super.initState();
+    _updateStateFromSelections();
     //Request microphone permission when app starts
     _setup();
+  }
+
+  void _updateStateFromSelections() {
+    final selectedInstrument = _instruments[_selectedInstrumentIndex];
+    final selectedTuning = selectedInstrument.tunings[_selectedTuningIndex];
+
+    _stringNames = selectedTuning.notes;
+    _stringDisplayNames = _stringNames
+        .map((note) => note.substring(0, note.length - 1))
+        .toList();
   }
 
   Future<void> _setup() async {
@@ -101,7 +191,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
 
   double _noteToFreq(String noteName) {
     // Map representing no. of semitones from A
-    const Map<String, int> _noteMap = {
+    const Map<String, int> noteMap = {
       'A': 0,
       'A#': 1,
       'B': 2,
@@ -121,7 +211,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
     final octave = int.parse(noteName.substring(noteName.length - 1));
 
     // Calculate number of semitones from A
-    final semitonesFromA4 = _noteMap[note]!;
+    final semitonesFromA4 = noteMap[note]!;
     final semitones = semitonesFromA4 + (octave - 4) * 12;
 
     return 440.0 * pow(2, semitones / 12.0);
@@ -265,7 +355,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
           color: isSelected ? const Color(0xFF3D352E) : const Color(0xFFE0D5C8),
         ),
         child: Text(
-          _stringDisplay[index],
+          _stringDisplayNames[index],
           style: TextStyle(
             color: isSelected
                 ? const Color(0xFFE0D5C8)
@@ -278,13 +368,113 @@ class _TunerHomePageState extends State<TunerHomePage> {
     );
   }
 
+  void _onInstrumentSelected(int index) {
+    setState(() {
+      _selectedInstrumentIndex = index;
+      _selectedTuningIndex = 0;
+      _updateStateFromSelections();
+      _stopCapture();
+    });
+  }
+
+  void _onTuningSelected(int index) {
+    setState(() {
+      _selectedTuningIndex = index;
+      _updateStateFromSelections();
+      _stopCapture();
+    });
+    Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final selectedInstrument = _instruments[_selectedInstrumentIndex];
+
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: Color(0xFFFFF5E9),
       appBar: AppBar(
+        leading: IconButton(
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          icon: const Icon(Icons.menu, color: Color(0xFFFFF5E9)),
+        ),
         title: Text('Guitar Tuner', style: TextStyle(color: Color(0xFFFFF5E9))),
         backgroundColor: Color(0xFF3D352E),
+        elevation: 2.0,
+      ),
+      drawer: Drawer(
+        backgroundColor: const Color(0xFFFFF5E9),
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(color: Color(0xFF3D352E)),
+              child: Text(
+                'Logo',
+                style: TextStyle(color: Colors.white, fontSize: 24),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(7.0, 2.0, 0.0, 5.0),
+              child: Text(
+                'Instruments',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF3D352E),
+                ),
+              ),
+            ),
+            for (int i = 0; i < _instruments.length; i++)
+              ListTile(
+                title: Row(
+                  // mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    CircleAvatar(
+                      radius: 25,
+                      backgroundColor: Color(0xFFE0D5C8),
+                      backgroundImage: AssetImage(_instruments[i].imgPath),
+                    ),
+                    SizedBox(width: 10),
+                    Text(_instruments[i].name),
+                  ],
+                ),
+                selected: i == _selectedInstrumentIndex,
+                selectedColor: Colors.black,
+                selectedTileColor: Color(0xB08A7F75),
+                onTap: () => _onInstrumentSelected(i),
+              ),
+            SizedBox(height: 30),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(7.0, 2.0, 0.0, 5.0),
+              child: Text(
+                'Tunings',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF3D352E),
+                ),
+              ),
+            ),
+            for (int i = 0; i < selectedInstrument.tunings.length; i++)
+              ListTile(
+                title: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(selectedInstrument.tunings[i].name),
+                    Text(
+                      selectedInstrument.tunings[i].notes.toString(),
+                      style: TextStyle(color: Color(0x55000000), fontSize: 12),
+                    ),
+                  ],
+                ),
+                selected: i == _selectedTuningIndex,
+                selectedColor: Colors.black,
+                selectedTileColor: Color(0xB08A7F75),
+                onTap: () => _onTuningSelected(i),
+              ),
+          ],
+        ),
       ),
       body: Center(
         child: Column(
@@ -301,7 +491,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
               child: Center(
                 child: _isListening && _selectedStringIndex != -1
                     ? Text(
-                        _stringDisplay[_selectedStringIndex],
+                        _stringDisplayNames[_selectedStringIndex],
                         style: const TextStyle(
                           color: Color(0xFF3D352E),
                           fontSize: 120,
@@ -345,7 +535,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: List.generate(
-                  6,
+                  _stringNames.length,
                   (index) => _buildTuningNotesButtons(index),
                 ),
               ),
