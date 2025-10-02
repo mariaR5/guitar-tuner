@@ -10,14 +10,15 @@ import 'package:permission_handler/permission_handler.dart';
 class Tuning {
   final String name;
   final List<String> notes;
+  final bool isCustom;
 
-  Tuning({required this.name, required this.notes});
+  Tuning({required this.name, required this.notes, this.isCustom = false});
 }
 
 class Instrument {
   final String name;
   final String imgPath;
-  final List<Tuning> tunings;
+  List<Tuning> tunings;
 
   Instrument({
     required this.name,
@@ -386,6 +387,40 @@ class _TunerHomePageState extends State<TunerHomePage> {
     Navigator.pop(context);
   }
 
+  void _addTuning(Tuning newTuning) {
+    setState(() {
+      _instruments[_selectedInstrumentIndex].tunings.add(newTuning);
+      _selectedTuningIndex =
+          _instruments[_selectedInstrumentIndex].tunings.length - 1;
+      _updateStateFromSelections();
+      _stopCapture();
+    });
+  }
+
+  void _deleteTuning(int tuningIndex) {
+    setState(() {
+      _instruments[_selectedInstrumentIndex].tunings.removeAt(tuningIndex);
+      _selectedTuningIndex = 0;
+      _updateStateFromSelections();
+      _stopCapture();
+    });
+  }
+
+  void _showAddTuningDialog() {
+    final selectedInstrument = _instruments[_selectedInstrumentIndex];
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AddTuningDialog(
+          stringCount: selectedInstrument.tunings[0].notes.length,
+          onSave: (newTuning) {
+            _addTuning(newTuning);
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedInstrument = _instruments[_selectedInstrumentIndex];
@@ -447,13 +482,22 @@ class _TunerHomePageState extends State<TunerHomePage> {
             SizedBox(height: 30),
             Padding(
               padding: const EdgeInsets.fromLTRB(7.0, 2.0, 0.0, 5.0),
-              child: Text(
-                'Tunings',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF3D352E),
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Tunings',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF3D352E),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _showAddTuningDialog,
+                    icon: Icon(Icons.add, color: Color(0xFF3D352E)),
+                  ),
+                ],
               ),
             ),
             for (int i = 0; i < selectedInstrument.tunings.length; i++)
@@ -465,6 +509,10 @@ class _TunerHomePageState extends State<TunerHomePage> {
                     Text(
                       selectedInstrument.tunings[i].notes.toString(),
                       style: TextStyle(color: Color(0x55000000), fontSize: 12),
+                    ),
+                    IconButton(
+                      onPressed: () => _deleteTuning(i),
+                      icon: Icon(Icons.more_vert),
                     ),
                   ],
                 ),
@@ -629,5 +677,162 @@ class LinearGaugePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant LinearGaugePainter oldDelegate) {
     return oldDelegate.cents != cents;
+  }
+}
+
+// Tuning Dialog Widget
+class AddTuningDialog extends StatefulWidget {
+  final int stringCount;
+  final Function(Tuning) onSave;
+
+  const AddTuningDialog({
+    super.key,
+    required this.stringCount,
+    required this.onSave,
+  });
+
+  @override
+  State<AddTuningDialog> createState() => _AddTuningDialogState();
+}
+
+class _AddTuningDialogState extends State<AddTuningDialog> {
+  late List<String> _selectedNotes;
+  late List<int> _selectedOctaves;
+  late TextEditingController _nameController;
+
+  final List<String> _noteOptions = [
+    'C',
+    'C#',
+    'D',
+    'D#',
+    'E',
+    'F',
+    'F#',
+    'G',
+    'G#',
+    'A',
+    'A#',
+    'B',
+  ];
+  final List<int> _octaveOptions = [0, 1, 2, 3, 4, 5, 6, 7];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: 'Custom Tuning 1');
+    _selectedNotes = List.generate(widget.stringCount, (index) => 'E');
+    _selectedOctaves = List.generate(widget.stringCount, (index) => 4);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void _saveTuning() {
+    if (_nameController.text.isEmpty) return;
+
+    final List<String> finalNotes = [];
+    for (int i = 0; i < widget.stringCount; i++) {
+      finalNotes.add('${_selectedNotes[i]}${_selectedOctaves[i]}');
+    }
+
+    final newTuning = Tuning(
+      name: _nameController.text,
+      notes: finalNotes,
+      isCustom: true,
+    );
+    widget.onSave(newTuning);
+    Navigator.pop(context);
+  }
+
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: Color(0xFFFFF5E9),
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            'Custom Tuning',
+            style: TextStyle(color: Color(0xFF3D352E)),
+          ),
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: Icon(Icons.close, color: Color(0xFF3D352E)),
+          ),
+        ],
+      ),
+
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Tuning Name',
+                labelStyle: TextStyle(color: Color(0xFF3D352E)),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: Color(0xFF3D352E)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            for (int i = 0; i < widget.stringCount; i++)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    DropdownButton<String>(
+                      value: _selectedNotes[i],
+                      items: _noteOptions.map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(
+                            value,
+                            style: const TextStyle(color: Color(0xFF3D352E)),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) {
+                        setState(() {
+                          _selectedNotes[i] = newValue!;
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    DropdownButton<int>(
+                      value: _selectedOctaves[i],
+                      items: _octaveOptions.map((int value) {
+                        return DropdownMenuItem<int>(
+                          value: value,
+                          child: Text(
+                            value.toString(),
+                            style: const TextStyle(color: Color(0xFF3D352E)),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) {
+                        setState(() {
+                          _selectedOctaves[i] = newValue!;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+
+      actions: [
+        TextButton(
+          onPressed: _saveTuning,
+          child: const Text('Save', style: TextStyle(color: Color(0xFF3D352E))),
+        ),
+      ],
+    );
   }
 }
