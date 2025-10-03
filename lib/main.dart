@@ -13,6 +13,10 @@ class Tuning {
   final bool isCustom;
 
   Tuning({required this.name, required this.notes, this.isCustom = false});
+
+  String get displayNotes => notes
+      .map((n) => n.replaceAll(RegExp(r'[0-9]'), '').replaceAll('#', '♯'))
+      .join(' ');
 }
 
 class Instrument {
@@ -43,7 +47,47 @@ class MyApp extends StatelessWidget {
         visualDensity: VisualDensity.adaptivePlatformDensity,
         fontFamily: 'Inter',
       ),
-      home: TunerHomePage(),
+      home: const SplashScreen(),
+    );
+  }
+}
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  double _opacity = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 400), () {
+      setState(() {
+        _opacity = 1.0;
+      });
+    });
+    Timer(const Duration(seconds: 3), () {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const TunerHomePage()),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Color(0xffFFF5E9),
+      body: Center(
+        child: AnimatedOpacity(
+          opacity: _opacity,
+          duration: const Duration(seconds: 1),
+          child: Image.asset('assets/images/logo.png', width: 200),
+        ),
+      ),
     );
   }
 }
@@ -350,7 +394,9 @@ class _TunerHomePageState extends State<TunerHomePage> {
     return GestureDetector(
       onTap: () => _onStringSelected(index),
       child: Container(
-        padding: EdgeInsets.all(16),
+        width: 52,
+        height: 52,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: isSelected ? const Color(0xFF3D352E) : const Color(0xFFE0D5C8),
@@ -362,7 +408,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
                 ? const Color(0xFFE0D5C8)
                 : const Color(0xFF3D352E),
             fontWeight: FontWeight.bold,
-            fontSize: 28,
+            fontSize: 22,
           ),
         ),
       ),
@@ -384,7 +430,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
       _updateStateFromSelections();
       _stopCapture();
     });
-    Navigator.pop(context);
+    // Navigator.pop(context);
   }
 
   void _addTuning(Tuning newTuning) {
@@ -392,6 +438,15 @@ class _TunerHomePageState extends State<TunerHomePage> {
       _instruments[_selectedInstrumentIndex].tunings.add(newTuning);
       _selectedTuningIndex =
           _instruments[_selectedInstrumentIndex].tunings.length - 1;
+      _updateStateFromSelections();
+      _stopCapture();
+    });
+  }
+
+  void _editTuning(int tuningIndex, Tuning updatedTuning) {
+    setState(() {
+      _instruments[_selectedInstrumentIndex].tunings[tuningIndex] =
+          updatedTuning;
       _updateStateFromSelections();
       _stopCapture();
     });
@@ -406,15 +461,20 @@ class _TunerHomePageState extends State<TunerHomePage> {
     });
   }
 
-  void _showAddTuningDialog() {
+  void _showAddTuningDialog({Tuning? tuningToEdit, int? tuningIndex}) {
     final selectedInstrument = _instruments[_selectedInstrumentIndex];
     showDialog(
       context: context,
       builder: (context) {
         return AddTuningDialog(
           stringCount: selectedInstrument.tunings[0].notes.length,
+          tuningToEdit: tuningToEdit,
           onSave: (newTuning) {
-            _addTuning(newTuning);
+            if (tuningIndex != null) {
+              _editTuning(tuningIndex, newTuning);
+            } else {
+              _addTuning(newTuning);
+            }
           },
         );
       },
@@ -442,11 +502,16 @@ class _TunerHomePageState extends State<TunerHomePage> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            const DrawerHeader(
+            DrawerHeader(
               decoration: BoxDecoration(color: Color(0xFF3D352E)),
-              child: Text(
-                'Logo',
-                style: TextStyle(color: Colors.white, fontSize: 24),
+              child: Padding(
+                padding: EdgeInsets.only(bottom: 10),
+                child: Image.asset(
+                  'assets/images/logo_light.png',
+                  width: 20,
+                  height: 20,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
             Padding(
@@ -502,20 +567,44 @@ class _TunerHomePageState extends State<TunerHomePage> {
             ),
             for (int i = 0; i < selectedInstrument.tunings.length; i++)
               ListTile(
-                title: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(selectedInstrument.tunings[i].name),
-                    Text(
-                      selectedInstrument.tunings[i].notes.toString(),
-                      style: TextStyle(color: Color(0x55000000), fontSize: 12),
-                    ),
-                    IconButton(
-                      onPressed: () => _deleteTuning(i),
-                      icon: Icon(Icons.more_vert),
-                    ),
-                  ],
+                title: Text(selectedInstrument.tunings[i].name),
+                subtitle: Text(
+                  selectedInstrument.tunings[i].displayNotes,
+                  style: TextStyle(color: Color(0x553D352E), fontSize: 12),
                 ),
+                trailing: selectedInstrument.tunings[i].isCustom
+                    ? PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert),
+                        onSelected: (value) {
+                          if (value == 'edit') {
+                            _showAddTuningDialog(
+                              tuningToEdit: selectedInstrument.tunings[i],
+                              tuningIndex: i,
+                            );
+                          } else if (value == 'delete') {
+                            _deleteTuning(i);
+                          }
+                        },
+                        itemBuilder: (BuildContext context) =>
+                            <PopupMenuEntry<String>>[
+                              const PopupMenuItem<String>(
+                                value: 'edit',
+                                child: Row(
+                                  children: [Icon(Icons.edit), Text('Edit')],
+                                ),
+                              ),
+                              const PopupMenuItem<String>(
+                                value: 'delete',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.delete),
+                                    Text('Delete'),
+                                  ],
+                                ),
+                              ),
+                            ],
+                      )
+                    : null,
                 selected: i == _selectedTuningIndex,
                 selectedColor: Colors.black,
                 selectedTileColor: Color(0xB08A7F75),
@@ -579,7 +668,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
             ),
             const Spacer(),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: List.generate(
@@ -680,15 +769,17 @@ class LinearGaugePainter extends CustomPainter {
   }
 }
 
-// Tuning Dialog Widget
+//--------------Tuning Dialog Widget---------------------
 class AddTuningDialog extends StatefulWidget {
   final int stringCount;
   final Function(Tuning) onSave;
+  final Tuning? tuningToEdit;
 
   const AddTuningDialog({
     super.key,
     required this.stringCount,
     required this.onSave,
+    this.tuningToEdit,
   });
 
   @override
@@ -719,9 +810,19 @@ class _AddTuningDialogState extends State<AddTuningDialog> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: 'Custom Tuning 1');
-    _selectedNotes = List.generate(widget.stringCount, (index) => 'E');
-    _selectedOctaves = List.generate(widget.stringCount, (index) => 4);
+    if (widget.tuningToEdit != null) {
+      _nameController = TextEditingController(text: widget.tuningToEdit!.name);
+      _selectedNotes = widget.tuningToEdit!.notes
+          .map((n) => n.substring(0, n.length - 1))
+          .toList();
+      _selectedOctaves = widget.tuningToEdit!.notes
+          .map((n) => int.parse(n.substring(n.length - 1)))
+          .toList();
+    } else {
+      _nameController = TextEditingController(text: 'Custom Tuning 1');
+      _selectedNotes = List.generate(widget.stringCount, (index) => 'E');
+      _selectedOctaves = List.generate(widget.stringCount, (index) => 4);
+    }
   }
 
   @override
@@ -747,92 +848,139 @@ class _AddTuningDialogState extends State<AddTuningDialog> {
     Navigator.pop(context);
   }
 
+  @override
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: Color(0xFFFFF5E9),
-      title: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Custom Tuning',
-            style: TextStyle(color: Color(0xFF3D352E)),
-          ),
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: Icon(Icons.close, color: Color(0xFF3D352E)),
-          ),
-        ],
-      ),
-
-      content: SingleChildScrollView(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      contentPadding: const EdgeInsets.all(20),
+      content: SizedBox(
+        width: MediaQuery.of(context).size.width * 0.8,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Tuning Name',
-                labelStyle: TextStyle(color: Color(0xFF3D352E)),
-                focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF3D352E)),
+            Stack(
+              children: [
+                Center(
+                  child: TextField(
+                    controller: _nameController,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF3D352E),
+                    ),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                    ),
+                  ),
                 ),
-              ),
+                Positioned(
+                  right: -10,
+                  top: -10,
+                  child: IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(Icons.close, color: Color(0xFF3D352E)),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
-            for (int i = 0; i < widget.stringCount; i++)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    DropdownButton<String>(
-                      value: _selectedNotes[i],
-                      items: _noteOptions.map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(
-                            value,
-                            style: const TextStyle(color: Color(0xFF3D352E)),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (newValue) {
-                        setState(() {
-                          _selectedNotes[i] = newValue!;
-                        });
-                      },
-                    ),
-                    const SizedBox(width: 10),
-                    DropdownButton<int>(
-                      value: _selectedOctaves[i],
-                      items: _octaveOptions.map((int value) {
-                        return DropdownMenuItem<int>(
-                          value: value,
-                          child: Text(
-                            value.toString(),
-                            style: const TextStyle(color: Color(0xFF3D352E)),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (newValue) {
-                        setState(() {
-                          _selectedOctaves[i] = newValue!;
-                        });
-                      },
-                    ),
-                  ],
+            Row(
+              children: [
+                Text(
+                  'Note',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
                 ),
+                SizedBox(width: 25),
+                Text(
+                  'Octave',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    children: List.generate(widget.stringCount, (i) {
+                      return Padding(
+                        padding: EdgeInsets.symmetric(vertical: 4.0),
+                        child: Row(
+                          children: [
+                            DropdownButton<String>(
+                              value: _selectedNotes[i],
+                              items: _noteOptions
+                                  .map(
+                                    (String value) => DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (v) =>
+                                  setState(() => _selectedNotes[i] = v!),
+                            ),
+                            const SizedBox(width: 10),
+                            DropdownButton<int>(
+                              value: _selectedOctaves[i],
+                              items: _octaveOptions
+                                  .map(
+                                    (int value) => DropdownMenuItem<int>(
+                                      value: value,
+                                      child: Text(value.toString()),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (v) =>
+                                  setState(() => _selectedOctaves[i] = v!),
+                            ),
+                            const SizedBox(width: 15),
+                            Expanded(
+                              child: Container(
+                                height:
+                                    1.5 + ((widget.stringCount - 1 - i) * 0.8),
+                                color: const Color(0xFF3D352E),
+                              ),
+                            ),
+                            const SizedBox(width: 15),
+                            Text((widget.stringCount - i).toString()),
+                          ],
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                RotatedBox(
+                  quarterTurns: 1,
+                  child: Text(
+                    'Strings',
+                    style: TextStyle(color: Color(0xFF3D352E)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Align(
+              alignment: Alignment.bottomRight,
+              child: ElevatedButton(
+                onPressed: _saveTuning,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF3D352E),
+                  foregroundColor: Color.fromARGB(255, 189, 180, 172),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text('Save'),
               ),
+            ),
           ],
         ),
       ),
-
-      actions: [
-        TextButton(
-          onPressed: _saveTuning,
-          child: const Text('Save', style: TextStyle(color: Color(0xFF3D352E))),
-        ),
-      ],
     );
   }
 }
