@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_audio_capture/flutter_audio_capture.dart';
 import 'package:pitch_detector_dart/pitch_detector.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -52,6 +54,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// ---------Splash Screen--------------
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -91,6 +94,7 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 }
+//-----------------------------------------
 
 class TunerHomePage extends StatefulWidget {
   const TunerHomePage({super.key});
@@ -117,20 +121,15 @@ class _TunerHomePageState extends State<TunerHomePage> {
   Color _statusColor = const Color(0xFFE0D5C8);
   double _centsDiff = 0.0;
 
-  //------Different Types of Tunings--------
-  // final List<Tuning> _tunings = [
-  //   Tuning(name: 'Standard', notes: ['E2', 'A2', 'D3', 'G3', 'B3', 'E4']),
-  //   Tuning(name: 'Drop D', notes: ['D2', 'A2', 'D3', 'G3', 'B3', 'E4']),
-  //   Tuning(name: 'Open G', notes: ['D2', 'G2', 'D3', 'G3', 'B3', 'D4']),
-  //   Tuning(name: 'Open D', notes: ['D2', 'A2', 'D3', 'F#3', 'A3', 'D4']),
-  //   Tuning(name: 'Open C', notes: ['C2', 'G2', 'C3', 'G3', 'C4', 'E4']),
-  // ];
+  bool _isAutoMode = false;
+  bool _isInTune = false;
+  double _circleScale = 1.0;
 
   //------Different Instruments-----------
   final List<Instrument> _instruments = [
     Instrument(
       name: 'Guitar',
-      imgPath: 'assets/images/guitar.png',
+      imgPath: 'assets/images/guitar_1.png',
       tunings: [
         Tuning(name: 'Standard', notes: ['E2', 'A2', 'D3', 'G3', 'B3', 'E4']),
         Tuning(name: 'Drop D', notes: ['D2', 'A2', 'D3', 'G3', 'B3', 'E4']),
@@ -141,7 +140,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
     ),
     Instrument(
       name: 'Bass',
-      imgPath: 'assets/images/bass.png',
+      imgPath: 'assets/images/bass_1.png',
       tunings: [
         Tuning(name: 'Standard', notes: ['E1', 'A1', 'D2', 'G2']),
         Tuning(name: 'Drop D', notes: ['D1', 'A1', 'D2', 'G2']),
@@ -152,7 +151,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
     ),
     Instrument(
       name: 'Ukelele',
-      imgPath: 'assets/images/ukelele.png',
+      imgPath: 'assets/images/ukulele_1.png',
       tunings: [
         Tuning(name: 'Standard', notes: ['G4', 'C4', 'E4', 'A4']),
         Tuning(name: 'Traditional', notes: ['A4', 'D4', 'F#4', 'B4']),
@@ -163,7 +162,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
     ),
     Instrument(
       name: 'Violin',
-      imgPath: 'assets/images/violin.png',
+      imgPath: 'assets/images/violin_1.png',
       tunings: [
         Tuning(name: 'Standard', notes: ['G3', 'D4', 'A4', 'E5']),
         Tuning(name: 'Baroque', notes: ['G3', 'D4', 'A4', 'D5']),
@@ -262,6 +261,14 @@ class _TunerHomePageState extends State<TunerHomePage> {
     return 440.0 * pow(2, semitones / 12.0);
   }
 
+  void _triggerInTuneAnimationSound() {
+    setState(() => _circleScale = 1.1);
+    SystemSound.play(SystemSoundType.click);
+    Timer(const Duration(milliseconds: 200), () {
+      if (mounted) setState(() => _circleScale = 1.0);
+    });
+  }
+
   void _updateTuningStatus(double detectedFreq) {
     if (_selectedStringIndex == -1) return;
 
@@ -269,9 +276,16 @@ class _TunerHomePageState extends State<TunerHomePage> {
     final targetFreq = _noteToFreq(targetNote);
     final newCentsDiff = 1200 * (log(detectedFreq / targetFreq) / log(2));
 
+    final bool isNowInTune = newCentsDiff.abs() < 5;
+
+    if (isNowInTune && !_isInTune) {
+      _triggerInTuneAnimationSound();
+    }
+
     setState(() {
+      _isInTune = isNowInTune;
       _centsDiff = newCentsDiff;
-      if (newCentsDiff.abs() < 5) {
+      if (isNowInTune) {
         _tuningStatus = 'Perfect!';
         _statusColor = const Color(0xFF5ED169);
       } else if (newCentsDiff > 0) {
@@ -294,6 +308,12 @@ class _TunerHomePageState extends State<TunerHomePage> {
   // }
 
   Future<void> _onStringSelected(int index) async {
+    if (_isAutoMode) {
+      setState(() {
+        _isAutoMode = false;
+      });
+    }
+
     if (_isListening && _selectedStringIndex == index) {
       await _stopCapture();
       return;
@@ -339,6 +359,22 @@ class _TunerHomePageState extends State<TunerHomePage> {
     });
   }
 
+  int _findClosestNoteIndex(double detectedFreq) {
+    int closestIndex = -1;
+    double minDiff = double.infinity;
+
+    for (int i = 0; i < _stringNames.length; i++) {
+      final targetFreq = _noteToFreq(_stringNames[i]);
+      final diff = (detectedFreq - targetFreq).abs();
+
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIndex = i;
+      }
+    }
+    return closestIndex;
+  }
+
   Future<void> _processAudioBuffer(dynamic obj) async {
     // Convert audio data from dynamic list to double type list
     if (obj is List<dynamic>) {
@@ -349,6 +385,15 @@ class _TunerHomePageState extends State<TunerHomePage> {
       if (result != null && result.probability > _clarityThreshold) {
         _resetTimer?.cancel();
         if (mounted) {
+          //Auto Mode
+          if (_isAutoMode) {
+            final closestIndex = _findClosestNoteIndex(result.pitch);
+            if (closestIndex != -1 && _selectedStringIndex != closestIndex) {
+              setState(() {
+                _selectedStringIndex = closestIndex;
+              });
+            }
+          }
           _updateTuningStatus(result.pitch);
         }
       } else {
@@ -461,6 +506,17 @@ class _TunerHomePageState extends State<TunerHomePage> {
     });
   }
 
+  void _toggleAutoMode(bool value) {
+    setState(() {
+      _isAutoMode = value;
+      if (_isAutoMode) {
+        _startCapture();
+      } else {
+        _stopCapture();
+      }
+    });
+  }
+
   void _showAddTuningDialog({Tuning? tuningToEdit, int? tuningIndex}) {
     final selectedInstrument = _instruments[_selectedInstrumentIndex];
     showDialog(
@@ -514,6 +570,28 @@ class _TunerHomePageState extends State<TunerHomePage> {
                 ),
               ),
             ),
+            ListTile(
+              contentPadding: const EdgeInsets.fromLTRB(10.0, 2.0, 5.0, 5.0),
+              title: Text(
+                "Auto-Tuning",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              trailing: Transform.scale(
+                scale: 0.8,
+                child: Switch(
+                  value: _isAutoMode,
+                  onChanged: (bool value) {
+                    _toggleAutoMode(value);
+                  },
+                  inactiveThumbColor: Color(0xFF3D352E),
+                  inactiveTrackColor: Color(0xFFFFF5E9),
+                  activeColor: const Color(0xFF3D352E),
+                ),
+              ),
+            ),
+            SizedBox(height: 15),
+            const Divider(color: Color(0xFFD9CDBF)),
+            SizedBox(height: 15),
             Padding(
               padding: const EdgeInsets.fromLTRB(7.0, 2.0, 0.0, 5.0),
               child: Text(
@@ -533,7 +611,14 @@ class _TunerHomePageState extends State<TunerHomePage> {
                     CircleAvatar(
                       radius: 25,
                       backgroundColor: Color(0xFFE0D5C8),
-                      backgroundImage: AssetImage(_instruments[i].imgPath),
+                      child: Padding(
+                        padding: EdgeInsets.all(6),
+                        child: Image.asset(
+                          _instruments[i].imgPath,
+                          width: 35,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                     SizedBox(width: 10),
                     Text(_instruments[i].name),
@@ -544,7 +629,9 @@ class _TunerHomePageState extends State<TunerHomePage> {
                 selectedTileColor: Color(0xB08A7F75),
                 onTap: () => _onInstrumentSelected(i),
               ),
-            SizedBox(height: 30),
+            SizedBox(height: 15),
+            const Divider(color: Color(0xFFD9CDBF)),
+            SizedBox(height: 15),
             Padding(
               padding: const EdgeInsets.fromLTRB(7.0, 2.0, 0.0, 5.0),
               child: Row(
@@ -613,6 +700,8 @@ class _TunerHomePageState extends State<TunerHomePage> {
           ],
         ),
       ),
+
+      //-------------Home Page--------------
       body: Center(
         child: Column(
           children: [
@@ -635,10 +724,10 @@ class _TunerHomePageState extends State<TunerHomePage> {
                           fontWeight: FontWeight.bold,
                         ),
                       )
-                    : const Icon(
-                        Icons.music_note,
-                        color: Color(0xFF3D352E),
-                        size: 120,
+                    : Image.asset(
+                        _instruments[_selectedInstrumentIndex].imgPath,
+                        width: 150,
+                        fit: BoxFit.contain,
                       ),
               ),
             ),
@@ -685,7 +774,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
   }
 }
 
-// Animated Tuning meter
+//-----------Animated Tuning Meter-----------------
 class LinearGaugePainter extends CustomPainter {
   final double cents;
   LinearGaugePainter({required this.cents});
@@ -768,6 +857,7 @@ class LinearGaugePainter extends CustomPainter {
     return oldDelegate.cents != cents;
   }
 }
+//------------------------------------------------------
 
 //--------------Tuning Dialog Widget---------------------
 class AddTuningDialog extends StatefulWidget {
@@ -862,17 +952,29 @@ class _AddTuningDialogState extends State<AddTuningDialog> {
             Stack(
               children: [
                 Center(
-                  child: TextField(
-                    controller: _nameController,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF3D352E),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
                     ),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      isDense: true,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                    ),
+                    child: IntrinsicWidth(
+                      child: TextField(
+                        controller: _nameController,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF3D352E),
+                        ),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -958,7 +1060,7 @@ class _AddTuningDialogState extends State<AddTuningDialog> {
                   quarterTurns: 1,
                   child: Text(
                     'Strings',
-                    style: TextStyle(color: Color(0xFF3D352E)),
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
                   ),
                 ),
               ],
